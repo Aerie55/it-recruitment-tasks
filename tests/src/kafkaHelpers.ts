@@ -140,19 +140,32 @@ export async function waitForMessage(
   return new Promise((resolve, reject) => {
     let settled = false;
 
-    const finish = async (result: unknown) => {
+    const finish = (result: unknown) => {
       if (settled) return;
       settled = true;
       clearTimeout(timer);
-      try {
-        await consumer.disconnect();
-      } finally {
+
+      // Sprzątamy poza callbackiem eachMessage,
+      // żeby nie blokować consumera podczas obsługi wiadomości.
+      setImmediate(async () => {
+        try {
+          await consumer.stop();
+        } catch {
+          // consumer może być już zatrzymany
+        }
+
+        try {
+          await consumer.disconnect();
+        } catch {
+          // ignorujemy błąd podczas sprzątania
+        }
+
         resolve(result);
-      }
+      });
     };
 
     const timer = setTimeout(() => {
-      void finish(null);
+      finish(null);
     }, timeoutSeconds * 1000);
 
     consumer
@@ -161,13 +174,15 @@ export async function waitForMessage(
           if (settled) return;
           const parsed = tryParse(message.value);
           if (parsed !== null && matchFn(parsed)) {
-            await finish(parsed);
+            finish(parsed);
           }
         },
       })
       .catch((err) => {
-        clearTimeout(timer);
-        reject(err);
+        if (!settled) {
+          clearTimeout(timer);
+          reject(err);
+        }
       });
   });
 }
@@ -190,19 +205,30 @@ export async function collectMessages(
   return new Promise((resolve, reject) => {
     let settled = false;
 
-    const finish = async () => {
+    const finish = () => {
       if (settled) return;
       settled = true;
       clearTimeout(timer);
-      try {
-        await consumer.disconnect();
-      } finally {
+
+      setImmediate(async () => {
+        try {
+          await consumer.stop();
+        } catch {
+          // consumer może być już zatrzymany
+        }
+
+        try {
+          await consumer.disconnect();
+        } catch {
+          // ignorujemy błąd podczas sprzątania
+        }
+
         resolve(found);
-      }
+      });
     };
 
     const timer = setTimeout(() => {
-      void finish();
+      finish();
     }, timeoutSeconds * 1000);
 
     consumer
@@ -213,14 +239,16 @@ export async function collectMessages(
           if (parsed !== null && matchFn(parsed)) {
             found.push(parsed);
             if (found.length >= expectedCount) {
-              await finish();
+              finish();
             }
           }
         },
       })
       .catch((err) => {
-        clearTimeout(timer);
-        reject(err);
+        if (!settled) {
+          clearTimeout(timer);
+          reject(err);
+        }
       });
   });
 }

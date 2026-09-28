@@ -61,10 +61,17 @@ docker compose down -v
 ## Twoje notatki (uzupełnij przed oddaniem zadania)
 
 ### Uwagi do uruchomienia
-_(jeśli coś zmieniłeś/aś względem domyślnej konfiguracji, opisz to tutaj)_
+Podczas pracy dostosowałam konfigurację uruchamiania testów do środowiska Docker Compose. Testy są uruchamiane w osobnym kontenerze i komunikują się z Kafką przez adres brokera dostępny wewnątrz sieci Docker.
 
+Finalne uruchomienie testów:
+```bash
+docker compose --profile test run --rm --build tests
+```
 ### Podejście do testowania
-_(2–4 zdania: jak podszedłeś/aś do problemu, jakie decyzje podjąłeś/aś)_
+Testy zostały przygotowane jako testy E2E sprawdzające cały przepływ wiadomości przez Kafkę. Pokryłam poprawne zamówienie oraz błędne dane: brak pola, nieprawidłowy typ i niepoprawny JSON.
+Dodatkowo poprawiłam helpery Kafka, aby konsument był poprawnie zatrzymywany i rozłączany po zakończeniu testu, co zapobiegało zawieszaniu się testów. Wykorzystałam unikalne grupy konsumentów oraz fromBeginning: true, dzięki czemu testy są od siebie niezależne.
 
 ### Znane ograniczenia / co zrobiłbym/zrobiłabym inaczej mając więcej czasu
-_(krótka lista)_
+- Testy opierają się na obecnym formacie wiadomości oraz komunikatach błędów generowanych przez consumer.
+- Można byłoby dodatkowo zweryfikować, że błędne zamówienie nie trafia jednocześnie do orders-processed.
+- Można byłoby przygotować dodatkowy helper oczekujący na gotowość consumera, zamiast stosowanego obecnie krótkiego oczekiwania przed wysłaniem wiadomości.
